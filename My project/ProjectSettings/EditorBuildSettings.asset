@@ -4,7 +4,16 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/MainMenu.unity
+    guid: 1bbcfa9f17444f146a16f9e47933313f
+  - enabled: 1
+    path: Assets/Scenes/Select Character.unity
+    guid: c40cb150fcbdb3340bcbad64f95f30a3
+  - enabled: 1
+    path: Assets/Scenes/Scene A - Palm Trees.unity
+    guid: e50e5625252f67e478f9fbaaab55ae42
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
   m_UseUCBPForAssetBundles: 0
