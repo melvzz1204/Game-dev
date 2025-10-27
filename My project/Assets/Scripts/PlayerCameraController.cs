@@ -1,10 +1,11 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class PlayerCameraController : MonoBehaviour
 {
     [Header("References")]
-    public Transform target;       // The follow target (e.g. player head pivot)
-    public Transform playerBody;   // The main player root
+    public Transform target;       // Follow target (e.g., player head pivot)
+    public Transform playerBody;   // Player root transform
 
     [Header("View Settings")]
     public bool isFirstPerson = false;
@@ -12,6 +13,7 @@ public class PlayerCameraController : MonoBehaviour
 
     [Header("Camera Settings")]
     public float mouseSensitivity = 3f;
+    public float joystickSensitivity = 120f; // sensitivity for joystick camera
     public float smoothTime = 0.05f;
     public float minPitch = -40f;
     public float maxPitch = 75f;
@@ -23,7 +25,6 @@ public class PlayerCameraController : MonoBehaviour
     public float sideOffset = 0.5f;
 
     [Header("Rotation Settings")]
-    public KeyCode rotateKey = KeyCode.Mouse0;  // Hold this to rotate player
     public float rotationSpeed = 10f;
 
     [Header("Raycast Settings")]
@@ -32,14 +33,18 @@ public class PlayerCameraController : MonoBehaviour
     public Color hitColor = Color.red;
     public Color missColor = Color.white;
 
+    [Header("Input Mode")]
+    public bool useJoystickCamera = false;  // ✅ Switch between mouse or joystick camera
+    private Vector2 cameraJoystickInput = Vector2.zero;
+
     private float yaw;
     private float pitch;
     private float desiredDistance;
-    // Smoothed rotation state (use per-axis smoothing to avoid flicker)
     private float smoothedYaw;
     private float smoothedPitch;
     private float yawVelocity;
     private float pitchVelocity;
+
     private Camera cam;
     private Transform hitTarget;
     private Vector3 hitPoint;
@@ -53,8 +58,24 @@ public class PlayerCameraController : MonoBehaviour
         yaw = angles.y;
         pitch = angles.x;
 
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+#if UNITY_EDITOR || UNITY_STANDALONE
+        // Only lock cursor if we are using mouse control
+        if (!useJoystickCamera)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+#else
+// Always keep cursor visible on mobile/touch
+Cursor.lockState = CursorLockMode.None;
+Cursor.visible = true;
+#endif
+
     }
 
     void Update()
@@ -69,8 +90,12 @@ public class PlayerCameraController : MonoBehaviour
         HandleCharacterRotation();
     }
 
-    // Public accessor for other scripts to obtain the current aim point.
-    // Returns true if raycast hit a target in aimLayers, false otherwise.
+    // 🎮 Called by UI Virtual Joystick (camera stick)
+    public void OnCameraJoystickInput(Vector2 input)
+    {
+        cameraJoystickInput = input;
+    }
+
     public bool TryGetAimPoint(out Vector3 point)
     {
         point = hitPoint;
@@ -80,28 +105,45 @@ public class PlayerCameraController : MonoBehaviour
     void HandleInput()
     {
         if (Input.GetKeyDown(toggleViewKey))
+        {
             isFirstPerson = !isFirstPerson;
 
-        // Orbit control
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+            if (isFirstPerson && playerBody != null)
+            {
+                yaw = playerBody.eulerAngles.y;
+                smoothedYaw = yaw;
+            }
+        }
 
-        yaw += mouseX;
-        pitch -= mouseY;
-        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
-
-        // Zoom
-        float scroll = Input.GetAxis("Mouse ScrollWheel");
-        if (Mathf.Abs(scroll) > 0.01f)
+        if (useJoystickCamera)
         {
-            desiredDistance -= scroll * zoomSpeed;
-            desiredDistance = Mathf.Clamp(desiredDistance, minDistance, maxDistance);
+            // 📱 Camera control via virtual joystick
+            yaw += cameraJoystickInput.x * joystickSensitivity * Time.deltaTime;
+            pitch -= cameraJoystickInput.y * joystickSensitivity * Time.deltaTime;
+            pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+        }
+        else
+        {
+            // 🖱️ Camera control via mouse
+            float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+            float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+
+            yaw += mouseX;
+            pitch -= mouseY;
+            pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+
+            // Scroll to zoom
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (Mathf.Abs(scroll) > 0.01f)
+            {
+                desiredDistance -= scroll * zoomSpeed;
+                desiredDistance = Mathf.Clamp(desiredDistance, minDistance, maxDistance);
+            }
         }
     }
 
     void UpdateCameraPosition()
     {
-        // Improved smoothing: use SmoothDampAngle for yaw/pitch, but clamp smoothTime to avoid overshoot/flicker
         float effectiveSmoothTime = Mathf.Max(0.01f, smoothTime);
         smoothedYaw = Mathf.SmoothDampAngle(smoothedYaw, yaw, ref yawVelocity, effectiveSmoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
         smoothedPitch = Mathf.SmoothDampAngle(smoothedPitch, pitch, ref pitchVelocity, effectiveSmoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
@@ -109,7 +151,8 @@ public class PlayerCameraController : MonoBehaviour
 
         if (isFirstPerson)
         {
-            Vector3 fpPos = target.position + new Vector3(0, 0.2f, 0);
+            Vector3 headOffset = new Vector3(0, 2.4f, 0);
+            Vector3 fpPos = playerBody.position + headOffset;
             transform.position = Vector3.Lerp(transform.position, fpPos, 1f - Mathf.Exp(-20f * Time.unscaledDeltaTime));
             transform.rotation = rotation;
         }
@@ -124,25 +167,16 @@ public class PlayerCameraController : MonoBehaviour
 
     void HandleCharacterRotation()
     {
-        // ✅ Character rotates ONLY when rotateKey is held
         if (!playerBody) return;
-        if (Input.GetKey(rotateKey))
-        {
-            // Try rotating toward hit point if available
-            if (hitTarget)
-            {
-                Vector3 dir = (hitPoint - playerBody.position);
-                dir.y = 0f;
-                if (dir.sqrMagnitude > 0.001f)
-                {
-                    Quaternion lookRot = Quaternion.LookRotation(dir);
-                    playerBody.rotation = Quaternion.Slerp(playerBody.rotation, lookRot, rotationSpeed * Time.deltaTime);
-                    return;
-                }
-            }
 
-            // Otherwise, rotate toward camera yaw
+        if (isFirstPerson)
+        {
             Quaternion targetRot = Quaternion.Euler(0, yaw, 0);
+            playerBody.rotation = Quaternion.Slerp(playerBody.rotation, targetRot, rotationSpeed * Time.deltaTime);
+        }
+        else
+        {
+            Quaternion targetRot = Quaternion.Euler(0, smoothedYaw, 0);
             playerBody.rotation = Quaternion.Slerp(playerBody.rotation, targetRot, rotationSpeed * Time.deltaTime);
         }
     }

@@ -165,6 +165,7 @@ PlayerSettings:
   androidMaxAspectRatio: 2.4
   androidMinAspectRatio: 1
   applicationIdentifier:
+    Android: com.twobots.tumbangpreso
     Standalone: com.DefaultCompany.3D-Project
   buildNumber:
     Standalone: 0
@@ -958,7 +959,7 @@ PlayerSettings:
   qnxGraphicConfPath: 
   apiCompatibilityLevel: 6
   captureStartupLogs: {}
-  activeInputHandler: 2
+  activeInputHandler: 1
   windowsGamepadBackendHint: 0
   cloudProjectId: 06571b5f-d91f-4c23-b103-e1ce1e11d64d
   framebufferDepthMemorylessMode: 0

@@ -54,6 +54,23 @@ public class PickandThrow : MonoBehaviour
         }
     }
 
+    public void MobilePickup()
+    {
+
+        if (movementScript != null)
+            StartCoroutine(movementScript.PlayPickAnimation());
+        else
+            Debug.LogWarning("movementScript reference not set in PickandThrow!");
+    }
+
+    public void MobileThrow()
+    {
+        if (heldSlipper != null)
+        {
+            StartCoroutine(ThrowSequence());
+        }
+    }
+
     public void TryPickup(Collider other)
     {
         if (heldSlipper != null || Time.time < lastThrowTime + pickupCooldown)
@@ -100,7 +117,7 @@ public class PickandThrow : MonoBehaviour
     }
 
 
-    void ThrowSlipper()
+    public void ThrowSlipper()
     {
         if (heldSlipper == null) return;
 
